@@ -172,7 +172,8 @@ export default function App() {
       else if (error.code === 'auth/wrong-password') setAuthError('كلمة المرور خاطئة');
       else if (error.code === 'auth/email-already-in-use') setAuthError('البريد الإلكتروني مستخدم بالفعل');
       else if (error.code === 'auth/weak-password') setAuthError('كلمة المرور ضعيفة جداً');
-      else setAuthError('حدث خطأ ما، يرجى المحاولة مرة أخرى');
+      else if (error.code === 'auth/operation-not-allowed') setAuthError('تسجيل الدخول بالبريد الإلكتروني غير مفعل في Firebase');
+      else setAuthError(`خطأ: ${error.message || 'حدث خطأ ما، يرجى المحاولة مرة أخرى'}`);
     } finally {
       setSubmitting(false);
     }
