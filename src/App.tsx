@@ -84,7 +84,6 @@ export default function App() {
           if (userDoc.exists()) {
             setProfile(userDoc.data() as UserProfile);
           } else {
-            // This handles cases where user registered but profile wasn't created
             const newProfile: UserProfile = {
               uid: u.uid,
               displayName: u.displayName || displayName || 'مستخدم جديد',
@@ -94,18 +93,20 @@ export default function App() {
             await setDoc(doc(db, 'users', u.uid), newProfile);
             setProfile(newProfile);
           }
-          if (view === 'auth') setView('dashboard');
+          // Only redirect to dashboard if we are currently in the auth view
+          setView(current => current === 'auth' ? 'dashboard' : current);
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${u.uid}`);
         }
       } else {
         setProfile(null);
-        if (view !== 'public') setView('public');
+        // Only redirect to public if we are not in the auth view and not already in public
+        setView(current => (current !== 'public' && current !== 'auth') ? 'public' : current);
       }
       setLoading(false);
     });
     return unsubscribe;
-  }, [displayName]);
+  }, []); // Empty dependency array to prevent re-subscribing on every keystroke
 
   useEffect(() => {
     let q;
