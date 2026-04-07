@@ -5,8 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut, 
   onAuthStateChanged,
   User
@@ -42,7 +43,11 @@ import {
   ChevronRight,
   ChevronLeft,
   Loader2,
-  X
+  X,
+  Mail,
+  KeyRound,
+  UserPlus,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -53,8 +58,16 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [reflections, setReflections] = useState<Reflection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'dashboard' | 'public' | 'add'>('public');
+  const [view, setView] = useState<'dashboard' | 'public' | 'add' | 'auth'>('public');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Auth state
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'reset'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
 
   // Form state
   const [verseRef, setVerseRef] = useState('');
@@ -71,27 +84,28 @@ export default function App() {
           if (userDoc.exists()) {
             setProfile(userDoc.data() as UserProfile);
           } else {
+            // This handles cases where user registered but profile wasn't created
             const newProfile: UserProfile = {
               uid: u.uid,
-              displayName: u.displayName || 'مستخدم',
+              displayName: u.displayName || displayName || 'مستخدم جديد',
               email: u.email || '',
               role: 'user'
             };
             await setDoc(doc(db, 'users', u.uid), newProfile);
             setProfile(newProfile);
           }
-          setView('dashboard');
+          if (view === 'auth') setView('dashboard');
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${u.uid}`);
         }
       } else {
         setProfile(null);
-        setView('public');
+        if (view !== 'public') setView('public');
       }
       setLoading(false);
     });
     return unsubscribe;
-  }, []);
+  }, [displayName]);
 
   useEffect(() => {
     let q;
@@ -125,18 +139,48 @@ export default function App() {
     return unsubscribe;
   }, [view, user]);
 
-  const handleLogin = async () => {
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthMessage('');
+    setSubmitting(true);
+
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Login Error:", error);
+      if (authMode === 'login') {
+        await signInWithEmailAndPassword(auth, email, password);
+        setView('dashboard');
+      } else if (authMode === 'register') {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const u = userCredential.user;
+        const newProfile: UserProfile = {
+          uid: u.uid,
+          displayName: displayName || 'مستخدم',
+          email: email,
+          role: 'user'
+        };
+        await setDoc(doc(db, 'users', u.uid), newProfile);
+        setProfile(newProfile);
+        setView('dashboard');
+      } else if (authMode === 'reset') {
+        await sendPasswordResetEmail(auth, email);
+        setAuthMessage('تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني');
+      }
+    } catch (error: any) {
+      console.error("Auth Error:", error);
+      if (error.code === 'auth/user-not-found') setAuthError('المستخدم غير موجود');
+      else if (error.code === 'auth/wrong-password') setAuthError('كلمة المرور خاطئة');
+      else if (error.code === 'auth/email-already-in-use') setAuthError('البريد الإلكتروني مستخدم بالفعل');
+      else if (error.code === 'auth/weak-password') setAuthError('كلمة المرور ضعيفة جداً');
+      else setAuthError('حدث خطأ ما، يرجى المحاولة مرة أخرى');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      setView('public');
     } catch (error) {
       console.error("Logout Error:", error);
     }
@@ -247,7 +291,10 @@ export default function App() {
               </>
             ) : (
               <button 
-                onClick={handleLogin}
+                onClick={() => {
+                  setAuthMode('login');
+                  setView('auth');
+                }}
                 className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-full font-medium hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100"
               >
                 <LogIn className="w-4 h-4" />
@@ -310,7 +357,101 @@ export default function App() {
         )}
 
         <AnimatePresence mode="wait">
-          {view === 'add' ? (
+          {view === 'auth' ? (
+            <motion.div 
+              key="auth"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="max-w-md mx-auto bg-white rounded-3xl p-8 shadow-xl border border-slate-100"
+            >
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 mx-auto mb-4">
+                  {authMode === 'login' ? <LogIn className="w-8 h-8" /> : authMode === 'register' ? <UserPlus className="w-8 h-8" /> : <KeyRound className="w-8 h-8" />}
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">
+                  {authMode === 'login' ? 'تسجيل الدخول' : authMode === 'register' ? 'إنشاء حساب جديد' : 'استعادة كلمة المرور'}
+                </h2>
+                <p className="text-slate-500 mt-2">
+                  {authMode === 'login' ? 'مرحباً بك مجدداً في تَدَبُّر' : authMode === 'register' ? 'انضم إلينا في رحلة التدبر' : 'أدخل بريدك الإلكتروني لاستعادة الوصول'}
+                </p>
+              </div>
+
+              <form onSubmit={handleAuth} className="space-y-4">
+                {authMode === 'register' && (
+                  <div className="relative">
+                    <UserIcon className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                    <input 
+                      required
+                      type="text"
+                      placeholder="الاسم الكامل"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pr-12 pl-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                )}
+                <div className="relative">
+                  <Mail className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                  <input 
+                    required
+                    type="email"
+                    placeholder="البريد الإلكتروني"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pr-12 pl-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  />
+                </div>
+                {authMode !== 'reset' && (
+                  <div className="relative">
+                    <KeyRound className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                    <input 
+                      required
+                      type="password"
+                      placeholder="كلمة المرور"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pr-12 pl-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                )}
+
+                {authError && (
+                  <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {authError}
+                  </div>
+                )}
+
+                {authMessage && (
+                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl text-sm flex items-center gap-2">
+                    <Globe className="w-4 h-4 shrink-0" />
+                    {authMessage}
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : authMode === 'login' ? 'دخول' : authMode === 'register' ? 'إنشاء الحساب' : 'إرسال الرابط'}
+                </button>
+              </form>
+
+              <div className="mt-6 space-y-2 text-center">
+                {authMode === 'login' ? (
+                  <>
+                    <button onClick={() => setAuthMode('register')} className="text-emerald-600 text-sm font-bold hover:underline">ليس لديك حساب؟ سجل الآن</button>
+                    <br />
+                    <button onClick={() => setAuthMode('reset')} className="text-slate-400 text-xs hover:underline">نسيت كلمة المرور؟</button>
+                  </>
+                ) : (
+                  <button onClick={() => setAuthMode('login')} className="text-emerald-600 text-sm font-bold hover:underline">لديك حساب بالفعل؟ سجل دخولك</button>
+                )}
+              </div>
+            </motion.div>
+          ) : view === 'add' ? (
             <motion.div 
               key="add"
               initial={{ opacity: 0, y: 20 }}
