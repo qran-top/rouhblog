@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID" },
+        "displayName": { "type": "string", "description": "User's display name" },
+        "email": { "type": "string", "description": "User's email address" },
+        "role": { "type": "string", "enum": ["admin", "editor", "user"], "description": "User's role in the system" }
+      },
+      "required": ["uid", "displayName", "email", "role"]
+    },
+    "Reflection": {
+      "title": "Reflection",
+      "description": "A Quranic reflection (Tadabbur)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique reflection ID" },
+        "verseRef": { "type": "string", "description": "Reference to the verse (e.g., Surah:Verse)" },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string" },
+              "answer": { "type": "string" }
+            },
+            "required": ["question", "answer"]
+          },
+          "description": "List of question-answer pairs for this reflection"
+        },
+        "authorId": { "type": "string", "description": "UID of the user who published it" },
+        "authorName": { "type": "string", "description": "Name of the user who published it" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the reflection was created" },
+        "isPublic": { "type": "boolean", "description": "Whether the reflection is visible to the public" }
+      },
+      "required": ["verseRef", "entries", "authorId", "authorName", "createdAt", "isPublic"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile collection"
+    },
+    "/reflections/{reflectionId}": {
+      "schema": "Reflection",
+      "description": "Collection of Quranic reflections"
+    }
+  }
+}
