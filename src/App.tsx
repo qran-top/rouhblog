@@ -190,7 +190,15 @@ export default function App() {
       setView('dashboard');
     } catch (error: any) {
       console.error("Google Login Error:", error);
-      setAuthError('فشل تسجيل الدخول باستخدام جوجل');
+      if (error.code === 'auth/unauthorized-domain') {
+        setAuthError('هذا النطاق (Domain) غير مصرح به في إعدادات Firebase. يرجى إضافة qran.top إلى القائمة.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        setAuthError('تم إغلاق نافذة تسجيل الدخول قبل اكتمال العملية.');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        setAuthError('تم إلغاء طلب تسجيل الدخول.');
+      } else {
+        setAuthError(`فشل تسجيل الدخول: ${error.message || 'خطأ غير معروف'}`);
+      }
     } finally {
       setSubmitting(false);
     }
